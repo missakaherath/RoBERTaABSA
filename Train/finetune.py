@@ -133,12 +133,8 @@ elif model_type == "bert":
 elif model_type == "xlnet":
     embed = XLNetModel.from_pretrained(pretrained_model_name_or_path=args.model_name)
 elif model_type == "xlmroberta":
-    config = XLMRobertaConfig.from_pretrained(
-        "xlmroberta-xlm-roberta-base"
-    )
     embed = XLMRobertaModel.from_pretrained(
-        pretrained_model_name_or_path=args.model_name,
-        config = config
+        pretrained_model_name_or_path=args.model_name
     )
     embed.add_adapter("restaurant")
     embed.train_adapter("restaurant")
@@ -156,11 +152,31 @@ elif model_type == "xlmroberta":
         remove_unused_columns=False,
     )
 
+    train_data = DataSetIter(
+        data_bundle.get_dataset("train"),
+        num_workers=2,
+        batch_sampler=ConstantTokenNumSampler(
+            data_bundle.get_dataset("train").get_field("seq_len").content,
+            max_token=2000,
+            num_bucket=10,
+        ),
+    )
+
+    test_data = DataSetIter(
+        data_bundle.get_dataset("test"),
+        num_workers=2,
+        batch_sampler=ConstantTokenNumSampler(
+            data_bundle.get_dataset("test").get_field("seq_len").content,
+            max_token=2000,
+            num_bucket=10,
+        ),
+    )
+
     adaptertrainer = AdapterTrainer(
         model=embed,
         args=training_args,
-        train_dataset=data_bundle.get_dataset("train"),
-        eval_dataset=data_bundle.get_dataset("test")
+        train_dataset=train_data,
+        eval_dataset=test_data
     )
 
     adaptertrainer.train()
