@@ -1,4 +1,6 @@
 import sys
+from transformers import TrainingArguments, AdapterTrainer, EvalPrediction
+from transformers import XLMRobertaConfig
 
 sys.path.append("../")
 import os
@@ -131,10 +133,37 @@ elif model_type == "bert":
 elif model_type == "xlnet":
     embed = XLNetModel.from_pretrained(pretrained_model_name_or_path=args.model_name)
 elif model_type == "xlmroberta":
+    config = XLMRobertaConfig.from_pretrained(
+        "xlmroberta-xlm-roberta-base"
+    )
     embed = XLMRobertaModel.from_pretrained(
-        pretrained_model_name_or_path=args.model_name
+        pretrained_model_name_or_path=args.model_name,
+        config = config
+    )
+    embed.add_adapter("restaurant")
+    embed.train_adapter("restaurant")
+    embed.set_active_adapters("restaurant")
+
+    training_args = TrainingArguments(
+        learning_rate=2e-5,
+        num_train_epochs=5,
+        per_device_train_batch_size=32,
+        per_device_eval_batch_size=32,
+        # logging_steps=200,
+        output_dir="./training_output",
+        # overwrite_output_dir=True,
+        # The next line is important to ensure the dataset labels are properly passed to the model
+        remove_unused_columns=False,
     )
 
+    adaptertrainer = AdapterTrainer(
+        model=embed,
+        args=training_args,
+        train_dataset=data_bundle.get_dataset("train"),
+        eval_dataset=data_bundle.get_dataset("test")
+    )
+
+    adaptertrainer.train()
 
 class AspectModel(nn.Module):
     def __init__(self, embed, dropout, num_classes, pool="max"):
