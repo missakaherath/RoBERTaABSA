@@ -231,12 +231,62 @@ class AspectModel(nn.Module):
         return {"pred": preds}
 
 
-model = AspectModel(
+'''model = AspectModel(
     embed,
     dropout=dropout,
     num_classes=len(data_bundle.get_vocab("target")) - 1,
     pool=pool,
+)'''
+from transformers import RobertaConfig, RobertaModelWithHeads
+
+config = RobertaConfig.from_pretrained(
+    "roberta-base"
 )
+model = RobertaModelWithHeads.from_pretrained(
+    "roberta-base",
+    config=config,
+)
+# Add a new adapter
+model.add_adapter("restaurant")
+# Add a matching classification head
+model.add_classification_head(
+    "restaurant",
+    num_labels=3,
+    id2label={ 0: "neutral", 1: "positive", 2: "negative"}
+  )
+# Activate the adapter
+model.train_adapter("restaurant")
+model.set_active_adapters("restaurant")
+
+import numpy as np
+from transformers import TrainingArguments, AdapterTrainer, EvalPrediction
+
+training_args = TrainingArguments(
+    learning_rate=1e-4,
+    num_train_epochs=6,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
+    logging_steps=200,
+    output_dir="./training_output",
+    overwrite_output_dir=True,
+    # The next line is important to ensure the dataset labels are properly passed to the model
+    remove_unused_columns=False,
+)
+
+def compute_accuracy(p: EvalPrediction):
+  preds = np.argmax(p.predictions, axis=1)
+  return {"acc": (preds == p.label_ids).mean()}
+
+trainer = AdapterTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=data_bundle.get_dataset("train"),
+    eval_dataset=data_bundle.get_dataset("test"),
+    compute_metrics=compute_accuracy,
+)
+
+trainer.train()
+trainer.evaluate()
 
 no_decay = ["bias", "LayerNorm.weight"]
 optimizer_grouped_parameters = [
@@ -300,6 +350,7 @@ class SmoothLoss(LossBase):
         return loss
 
 
+
 tr_data = DataSetIter(
     data_bundle.get_dataset("train"),
     num_workers=2,
@@ -311,7 +362,7 @@ tr_data = DataSetIter(
 )
 
 
-trainer = Trainer(
+'''trainer = Trainer(
     tr_data,
     model,
     optimizer=optimizer,
@@ -334,9 +385,9 @@ trainer = Trainer(
     check_code_level=0,
     test_sampler=SortedSampler(),
     test_use_tqdm=False,
-)
+)'''
 
-trainer.train(load_best_model=False)
+#trainer.train(load_best_model=False)
 
 
 fitlog.add_other(trainer.start_time, name="start_time")
