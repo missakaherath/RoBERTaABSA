@@ -5,10 +5,32 @@ import json
 from fastNLP import Vocabulary
 from fastNLP.modules.tokenizer import RobertaTokenizer, BertTokenizer
 import warnings
+import torch
 
 warnings.filterwarnings("ignore")
 from transformers import XLNetTokenizer, XLMRobertaTokenizer
 
+
+#tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
+MAX_LEN = 128
+
+def encode_batch(batch):
+  """Encodes a batch of input data using the model tokenizer."""
+  return tokenizer(batch, max_length=MAX_LEN, truncation=True, padding="max_length")
+
+class DatasetObject(torch.utils.data.Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        item['labels'] = torch.tensor(self.labels[idx])
+        return item
+
+    def __len__(self):
+        return len(self.labels)
 
 class ResPipe(Pipe):
     def __init__(self, model_name="en", mask="<mask>"):
@@ -48,6 +70,7 @@ class ResPipe(Pipe):
             sep = self.tokenizer.sep_token
         for name, ds in data_bundle.iter_datasets():
             new_ds = DataSet()
+            print("_________________________:",name,ds)
             for ins in ds:
                 tokens = ins["tokens"]
                 if not isinstance(self.tokenizer, XLNetTokenizer):
@@ -82,13 +105,14 @@ class ResPipe(Pipe):
                         )
                         pieces.extend(bpes)
                         piece_masks.extend([mask] * (len(bpes)))
+                        
                     new_ins = Instance(
                         tokens=pieces,
                         target=target,
                         aspect_mask=piece_masks,
                         raw_words=" ".join(raw_words),
                     )
-                    new_ds.append(new_ins)
+                    new_ds.append(torch.Tensor(new_ins))
             new_bundle.set_dataset(new_ds, name)
 
         target_vocab = Vocabulary(padding=None, unknown=None)
@@ -98,7 +122,7 @@ class ResPipe(Pipe):
         new_bundle.set_target("target")
         new_bundle.set_input("tokens", "aspect_mask", "raw_words")
         new_bundle.apply_field(
-            lambda x: len(x), field_name="tokens", new_field_name="seq_len"
+            lambda x: len(x), field_name="tokens", new_field_name="labels"
         )
 
         # new_bundle.set_vocab(vocab, 'tokens')

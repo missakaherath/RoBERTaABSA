@@ -111,6 +111,7 @@ def get_data():
     data_bundle = ResPipe(model_name=args.model_name, mask=mask).process_from_file(
         os.path.join(args.data_dir, args.dataset)
     )
+    print("pppppppppp",data_bundle.get_dataset("train"))
     return data_bundle
 
 
@@ -276,7 +277,13 @@ training_args = TrainingArguments(
 def compute_accuracy(p: EvalPrediction):
   preds = np.argmax(p.predictions, axis=1)
   return {"acc": (preds == p.label_ids).mean()}
-
+print("qqqqqqqqqqqqqqqqqqqqq",data_bundle.get_dataset("train"))
+print("qqqqqqqqqqqqqqqqqqqqq",type(data_bundle.get_dataset("train")))
+print("xxx",data_bundle.get_dataset("train")[0]['tokens'])
+print("xxx",data_bundle.get_dataset("train")[0]['target'])
+print("xxx",data_bundle.get_dataset("train")[0]['aspect_mask'])
+print("xxx",data_bundle.get_dataset("train")[0]['raw_words'])
+print("xxx",data_bundle.get_dataset("train")[0]['labels'])
 trainer = AdapterTrainer(
     model=model,
     args=training_args,
